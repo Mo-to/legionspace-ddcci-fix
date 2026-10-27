@@ -1,0 +1,39 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dxva2.dll
+        shell: cmd
+        run: build.cmd
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item build/dxva2.dll, install.ps1, README.md, LICENSE dist/
+          Compress-Archive dist/* legionspace-ddcci-fix.zip
+          Get-FileHash build/dxva2.dll, legionspace-ddcci-fix.zip -Algorithm SHA256 | Format-Table -AutoSize
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legionspace-ddcci-fix
+          path: dist/
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" legionspace-ddcci-fix.zip --clobber
