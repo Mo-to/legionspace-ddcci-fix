@@ -75,6 +75,9 @@ foreach ($d in $dirs) {
     }
     Invoke-WithLegionSpaceClosed { Copy-Item $src $dst -Force }
     Write-Host "installed  $dst"
+    if (Test-Path $FixDir) {
+        "$(Get-Date -Format s) installed $dst" | Add-Content (Join-Path $FixDir 'install.log')
+    }
 }
 
 if ($AutoReinstall) {
@@ -83,13 +86,21 @@ if ($AutoReinstall) {
         Copy-Item $src (Join-Path $FixDir 'dxva2.dll') -Force
         Copy-Item $PSCommandPath (Join-Path $FixDir 'install.ps1') -Force
     }
-    # Runs from Program Files (admin-only writable) as SYSTEM at boot, before LegionSpace starts at logon.
+    # Runs from Program Files (admin-only writable) as SYSTEM: at boot (before LegionSpace starts at logon), at logon,
+    # and every 10 minutes to catch updates installed mid-session. An up-to-date check is just a hash comparison.
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$FixDir\install.ps1`""
-    $trigger = New-ScheduledTaskTrigger -AtStartup
+        -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$FixDir\install.ps1`""
+    $triggers = @(
+        New-ScheduledTaskTrigger -AtStartup
+        New-ScheduledTaskTrigger -AtLogOn
+        New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 10)
+    )
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
-    Write-Host "registered scheduled task '$TaskName' (re-applies the fix at every boot)"
+    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $triggers -Settings $settings `
+        -Principal $principal -Force | Out-Null
+    Write-Host "registered scheduled task '$TaskName' (boot, logon, every 10 min; log: $FixDir\install.log)"
 }
 
 Write-Host 'Done. Restart LegionSpace (or reboot) so it loads the fixed DLL.'

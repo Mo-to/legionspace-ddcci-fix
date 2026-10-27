@@ -66,8 +66,11 @@ monitors). Everything else keeps working: power profiles, fan curves, driver upd
 
 `-AutoReinstall` is recommended. LegionSpace updates install into a new version folder
 (`C:\Program Files\Lenovo\LegionSpace\<version>\`), which would not have the fix. The option copies the fix to
-`C:\Program Files\LegionSpace-DDCCI-Fix\` and registers a scheduled task that re-applies it at every boot. Without
-it, re-run `install.ps1` after each LegionSpace update.
+`C:\Program Files\LegionSpace-DDCCI-Fix\` and registers a scheduled task (SYSTEM, also on battery) that re-applies it
+at boot, at logon and every 10 minutes; each install is logged to `C:\Program Files\LegionSpace-DDCCI-Fix\install.log`.
+If LegionSpace updates and restarts itself, the new version gets the fix within 10 minutes, but it only loads it after
+its next restart (or a reboot). Without `-AutoReinstall`, re-run `install.ps1` after each LegionSpace update.
+Details, including how to check the task: [docs/auto-reinstall.md](docs/auto-reinstall.md).
 
 ### Verify
 
